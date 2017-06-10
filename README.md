@@ -1,8 +1,11 @@
 # DRY-DI
 DRY-DI: ES5/6 Dependency Injection where you Don't Repeat Yourself. 
 
-Works in the Browser or in Nodejs!
-Now with 100% more Interfaces!
+- Works in the Browser or in NodeJS!
+- Now with 100% more Interfaces!
+- Duck-Type verification!
+- No dependencies!
+- MIT License!
 
 
 ## INSTALL

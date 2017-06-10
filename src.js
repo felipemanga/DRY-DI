@@ -207,7 +207,9 @@ class Provide {
 
             instance = Object.create( this.clazz.prototype );
 
-            return this.ctor.call( instance, args );
+            this.ctor.call( instance, args );
+
+            return instance;
 
         };
 
@@ -265,7 +267,7 @@ class Inject{
         if( cid == -1 )
             cid = registerInterface( clazz );
         
-        let injections = {}, map = this.dependencies;
+        let injections = {}, map = this.dependencies, dependencyCount = 0;
 
         for( let key in map ){
 
@@ -276,13 +278,15 @@ class Inject{
             
             injections[key] = ifid;
 
-            this.dependencyCount++;
+            dependencyCount++;
 
         }
 
         let provider = (new Provide()).setConcretion( clazz ), proto = clazz.prototype;
         let providers = concretions[cid];
-        
+
+        provider.injections = injections;        
+        provider.dependencyCount = dependencyCount;
 
         provider.ctor = function( args ){
             resolveDependencies( this );
