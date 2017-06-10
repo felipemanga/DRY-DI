@@ -1,0 +1,27 @@
+{
+  "name": "dry-di",
+  "version": "0.5.0",
+  "description": "DRY-DI: ES6 Dependency Injection where you Don't Repeat Yourself. Now with 100% more Interfaces!",
+  "main": "index.js",
+  "scripts": {
+    "test": "gulp test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/felipemanga/DRY-DI.git"
+  },
+  "keywords": [
+    "ioc",
+    "dependency",
+    "injection",
+    "inversion-of-control",
+    "javascript",
+    "ecmascript"
+  ],
+  "author": "FManga",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/felipemanga/DRY-DI/issues"
+  },
+  "homepage": "https://github.com/felipemanga/DRY-DI#readme"
+}
