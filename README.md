@@ -1,6 +1,9 @@
 # DRY-DI
 DRY-DI: ES5/6 Dependency Injection where you Don't Repeat Yourself. 
+
+Works in the Browser or in Nodejs!
 Now with 100% more Interfaces!
+
 
 ## INSTALL
 
@@ -14,6 +17,9 @@ Well, I was annoyed by 3 things in other DI libraries:
 - Verbose and/or hard-to-read code.
 
 So I wrote a tiny little framework where you write code like this:
+
+    // get the dry-di functions
+    let {bind, inject, getInstanceOf} = require('dry-di')
 
     // create an IFood class to serve as an Interface
     class IFood{
