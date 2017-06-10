@@ -12,6 +12,7 @@ DRY-DI: ES5/6 Dependency Injection where you Don't Repeat Yourself.
 
     npm install --save dry-di
 
+
 ## Yet another DI container?!
 
 Well, I was annoyed by 3 things in other DI libraries:
@@ -77,8 +78,9 @@ So I wrote a tiny little framework where you write code like this:
     getInstanceOf("main").again();  
 
 As you can see, properties are automatically injected before the constructor is called.
+This feature isn't possible in ES6, however, so you must use a transpiler to convert it to ES5.
 
-That means that you don't need to do this common nonsense:
+On the other hand, that means you don't need to do this common nonsense:
 
     class A {
         dependency1:IPropertyType;
@@ -97,6 +99,23 @@ That means that you don't need to do this common nonsense:
 
 When you have lots of classes with lots of dependencies, this gets old fast.
 
+## Injection Tags
+It is possible to use tags for disambiguation. In the following example, Doritos will get injected into the Mouth as food, but not as healthyFood.
+
+    // Mouths require things that look like IFood.
+    // IFood-like things go in the "food" property.
+    inject({ 
+        food:IFood, // inject IFood, regardless of tags
+        healthyFood:[IFood, {healthy:true}], // inject IFood tagged healthy
+    }).into( Mouth ); 
+
+    // register Doritos as a kind of IFood.
+    bind(Doritos).to(IFood);
+
+    // register Cabbage as healthy IFood.
+    bind(Cabbage).to(IFood).withTags({ healthy:true });
+
+## Strings as Interfaces
 Also visible in the example is that you can use names instead of interface classes.
 This allows you to do things like:
 

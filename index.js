@@ -1,8 +1,13 @@
-"use strict";
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
@@ -95,13 +100,30 @@ var Slot = function () {
         }
     }, {
         key: "getViable",
-        value: function getViable(clazz) {
+        value: function getViable(clazz, tags) {
 
             if (this.viableProviders == 0) throw new Error("No viable providers for " + clazz);
 
-            for (var i = 0, c; c = this.providers[i]; ++i) {
-                if (!c.count) return c.provider;
+            var mostViable = null;
+            var maxPoints = -1;
+            notViable: for (var i = 0, c; c = this.providers[i]; ++i) {
+                if (c.count) continue;
+                var points = c.provider.dependencyCount;
+                if (tags && c.tags) {
+                    for (var tag in tags) {
+                        if (c.tags[tag] !== tags[tag]) continue notViable;
+                        points++;
+                    }
+                }
+                if (points > maxPoints) {
+                    maxPoints = points;
+                    mostViable = c;
+                }
             }
+
+            if (!mostViable) throw new Error("No viable providers for " + clazz + ". Tag mismatch.");
+
+            return mostViable.provider;
         }
     }]);
 
@@ -143,20 +165,15 @@ var Provide = function () {
         this.dependencyCount = 0;
         this.clazz = null;
 
+        // default policy is to create a new instance for each injection
         this.policy = function (args) {
             return new this.ctor(args);
         };
     }
 
-    // default policy is to create a new instance for each injection
-
-
     _createClass(Provide, [{
         key: "getRef",
-        value: function getRef(_interface) {
-
-            var ifid = knownInterfaces.indexOf(_interface);
-            if (ifid == -1) ifid = registerInterface(_interface);
+        value: function getRef(ifid, _interface) {
 
             var map = interfaces[ifid],
                 clazz = this.clazz;
@@ -174,12 +191,22 @@ var Provide = function () {
 
             this.clazz = clazz;
             if (typeof clazz == "function") {
-                this.ctor = function (args) {
-                    clazz.apply(this, args);
-                };
-                this.ctor.prototype = Object.create(clazz.prototype);
+                this.ctor = function (_clazz) {
+                    _inherits(_class, _clazz);
+
+                    function _class(args) {
+                        var _ref;
+
+                        _classCallCheck(this, _class);
+
+                        return _possibleConstructorReturn(this, (_ref = _class.__proto__ || Object.getPrototypeOf(_class)).call.apply(_ref, [this].concat(_toConsumableArray(args))));
+                    }
+
+                    return _class;
+                }(clazz);
+                // this.ctor.prototype = Object.create(clazz.prototype);
             } else {
-                this.policty = function () {
+                this.policy = function () {
                     return clazz;
                 };
             }
@@ -195,10 +222,14 @@ var Provide = function () {
         key: "factory",
         value: function factory() {
 
-            this.policy = function () {
+            this.policy = function (args) {
 
-                return function (args) {
-                    return new this.ctor(args);
+                return function () {
+                    for (var _len = arguments.length, args2 = Array(_len), _key = 0; _key < _len; _key++) {
+                        args2[_key] = arguments[_key];
+                    }
+
+                    return new this.ctor(args.concat(args2));
                 };
             };
 
@@ -213,9 +244,16 @@ var Provide = function () {
 
                 if (instance) return instance;
 
-                instance = Object.create(this.clazz.prototype);
-
+                instance = Object.create(this.ctor.prototype);
+                instance.constructor = this.ctor;
                 this.ctor.call(instance, args);
+
+                // new (class extends this.ctor{
+                //     constructor( args ){
+                //         instance = this; // cant do this :(
+                //         super(args);
+                //     }
+                // }
 
                 return instance;
             };
@@ -238,14 +276,31 @@ function bind(clazz) {
         providers = concretions[cid];
     }
 
+    var refs = [];
+    var tags = null;
+    var ifid = void 0;
+
     var partialBind = {
         to: function to(_interface) {
+            var ifid = knownInterfaces.indexOf(_interface);
+            if (ifid == -1) ifid = registerInterface(_interface);
+
             for (var i = 0, l = providers.length; i < l; ++i) {
                 var _provider = providers[i];
-                _provider.getRef(_interface); // ref indexes itself
+                var ref = _provider.getRef(ifid, _interface);
+                ref.tags = tags;
+                refs.push(ref);
             }
+
             return this;
         },
+
+        withTags: function withTags(tags) {
+            refs.forEach(function (ref) {
+                return ref.tags = tags;
+            });
+        },
+
         singleton: function singleton() {
             for (var i = 0, l = providers.length; i < l; ++i) {
                 providers[i].singleton();
@@ -268,6 +323,10 @@ var Inject = function () {
         _classCallCheck(this, Inject);
 
         this.dependencies = dependencies;
+        var tags = this.tags = {};
+        for (var key in dependencies) {
+            tags[key] = {};
+        }
     }
 
     _createClass(Inject, [{
@@ -279,13 +338,23 @@ var Inject = function () {
 
             var injections = {},
                 map = this.dependencies,
-                dependencyCount = 0;
+                dependencyCount = 0,
+                tags = this.tags;
 
             for (var key in map) {
 
-                var ifid = knownInterfaces.indexOf(map[key]);
+                var _interface = map[key];
+                var dependency = _interface;
+                if (Array.isArray(dependency)) {
+                    _interface = _interface[0];
+                    for (var i = 1; i < dependency.length; ++i) {
+                        if (typeof dependency[i] == "string") tags[key][dependency[i]] = true;else Object.assign(tags[key], dependency[i]);
+                    }
+                }
 
-                if (ifid == -1) ifid = registerInterface(map[key]);
+                var ifid = knownInterfaces.indexOf(_interface);
+
+                if (ifid == -1) ifid = registerInterface(_interface);
 
                 injections[key] = ifid;
 
@@ -303,15 +372,22 @@ var Inject = function () {
                 resolveDependencies(this);
                 clazz.apply(this, args);
             };
+            provider.ctor.prototype = Object.create(clazz.prototype);
+            provider.ctor.prototype.constructor = clazz;
 
-            provider.ctor.prototype = proto;
+            // provider.ctor = class extends clazz {
+            //     constructor( args ){
+            //         resolveDependencies( this ); // *sigh*
+            //         super(...args);
+            //     }
+            // };
 
             function resolveDependencies(obj) {
                 var slotset = context[context.length - 1];
-                for (var _key in injections) {
-                    var slot = slotset[injections[_key]];
-                    var _provider2 = slot.getViable(_key);
-                    obj[_key] = _provider2.policy([]);
+                for (var _key2 in injections) {
+                    var slot = slotset[injections[_key2]];
+                    var _provider2 = slot.getViable(_key2, tags[_key2]);
+                    obj[_key2] = _provider2.policy([]);
                 }
             }
         }
@@ -333,8 +409,8 @@ function getInstanceOf(_interface) {
 
     var provider = slot.getViable();
 
-    for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key2 = 1; _key2 < _len; _key2++) {
-        args[_key2 - 1] = arguments[_key2];
+    for (var _len2 = arguments.length, args = Array(_len2 > 1 ? _len2 - 1 : 0), _key3 = 1; _key3 < _len2; _key3++) {
+        args[_key3 - 1] = arguments[_key3];
     }
 
     return provider.policy.call(provider, args);

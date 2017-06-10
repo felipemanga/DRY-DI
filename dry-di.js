@@ -89,16 +89,32 @@ class Slot{
 
     }
 
-    getViable( clazz ){
+    getViable( clazz, tags ){
 
         if( this.viableProviders == 0 )
             throw new Error("No viable providers for " + clazz);
         
-        for( let i=0, c; c = this.providers[i]; ++i ){
-            if( !c.count )
-                return c.provider;
+        let mostViable = null;
+        let maxPoints = -1;
+        notViable: for( let i=0, c; c = this.providers[i]; ++i ){
+            if( c.count ) continue;
+            let points = c.provider.dependencyCount;
+            if( tags && c.tags ){
+                for( let tag in tags ){
+                    if( c.tags[tag] !== tags[tag] ) continue notViable;
+                    points++;
+                }
+            }
+            if( points > maxPoints ){
+                maxPoints = points;
+                mostViable = c;
+            }
         }
         
+        if( !mostViable )
+            throw new Error("No viable providers for " + clazz + ". Tag mismatch.");
+        
+        return mostViable.provider;
     }
 }
 
@@ -135,20 +151,20 @@ function registerInterface( ifc ){
 
 class Provide {
 
-    injections = null;
-    dependencyCount = 0;
-    clazz = null;
+    constructor(){
+        this.injections = null;
+        this.dependencyCount = 0;
+        this.clazz = null;
 
-    // default policy is to create a new instance for each injection
-    policy = function( args ){
-        return new this.ctor(args);
-    };
+        // default policy is to create a new instance for each injection
+        this.policy = function( args ){
+            return new (this.ctor)(args);
+        };
+    }
 
-    getRef( _interface ){
 
-        let ifid = knownInterfaces.indexOf( _interface );
-        if( ifid == -1 )
-            ifid = registerInterface( _interface );
+
+    getRef( ifid, _interface ){
 
         let map = interfaces[ ifid ], clazz = this.clazz;
 
@@ -166,10 +182,14 @@ class Provide {
 
         this.clazz = clazz;
         if( typeof clazz == "function" ){
-            this.ctor = function( args ){ clazz.apply( this, args ); };
-            this.ctor.prototype = Object.create(clazz.prototype);
+            this.ctor = class extends clazz{
+                constructor( args ){ 
+                    super( ...args ); 
+                }
+            };
+            // this.ctor.prototype = Object.create(clazz.prototype);
         }else{
-            this.policty = () => clazz;
+            this.policy = () => clazz;
         }
         
         let cid = knownInterfaces.indexOf( clazz );
@@ -185,10 +205,10 @@ class Provide {
 
     factory(){
 
-        this.policy = function(){
+        this.policy = function( args ){
 
-            return function( args ){
-                return new this.ctor(args);
+            return function( ...args2 ){
+                return new this.ctor( args.concat(args2) );
             };
 
         }
@@ -205,9 +225,16 @@ class Provide {
             if( instance )
                 return instance;
 
-            instance = Object.create( this.clazz.prototype );
-
+            instance = Object.create(this.ctor.prototype);
+            instance.constructor = this.ctor;
             this.ctor.call( instance, args );
+
+            // new (class extends this.ctor{
+            //     constructor( args ){
+            //         instance = this; // cant do this :(
+            //         super(args);
+            //     }
+            // }
 
             return instance;
 
@@ -231,14 +258,30 @@ function bind(clazz){
         providers = concretions[cid];
     }
 
+    let refs = [];
+    let tags = null;
+    let ifid;
+
     let partialBind = {
         to:function( _interface ){
+            let ifid = knownInterfaces.indexOf( _interface );
+            if( ifid == -1 )
+                ifid = registerInterface( _interface );
+
             for( let i=0, l=providers.length; i<l; ++i ){
                 let provider = providers[i];
-                provider.getRef( _interface ); // ref indexes itself
+                let ref = provider.getRef( ifid, _interface );
+                ref.tags = tags;
+                refs.push( ref );
             }
+
             return this;
         },
+
+        withTags:function( tags ){
+            refs.forEach( ref => ref.tags = tags );
+        },
+
         singleton:function(){
             for( let i=0, l=providers.length; i<l; ++i ){
                 providers[i].singleton();
@@ -259,6 +302,10 @@ function bind(clazz){
 class Inject{
     constructor(dependencies){
         this.dependencies = dependencies;
+        var tags = this.tags = {};
+        for( var key in dependencies ){
+            tags[key] = {};
+        }
     }
 
     into( clazz ){
@@ -267,14 +314,26 @@ class Inject{
         if( cid == -1 )
             cid = registerInterface( clazz );
         
-        let injections = {}, map = this.dependencies, dependencyCount = 0;
+        let injections = {}, map = this.dependencies, dependencyCount = 0, tags = this.tags;
 
         for( let key in map ){
 
-            let ifid = knownInterfaces.indexOf( map[key] );
+            var _interface =  map[key]
+            var dependency = _interface;
+            if( Array.isArray(dependency) ){
+                _interface = _interface[0];
+                for( let i=1; i<dependency.length; ++i ){
+                    if( typeof dependency[i] == "string" )
+                        tags[key][dependency[i]] = true;
+                    else
+                        Object.assign( tags[key], dependency[i] );
+                }
+            }
+
+            let ifid = knownInterfaces.indexOf( _interface );
 
             if( ifid == -1 )
-                ifid = registerInterface( map[key] );
+                ifid = registerInterface( _interface );
             
             injections[key] = ifid;
 
@@ -292,14 +351,21 @@ class Inject{
             resolveDependencies( this );
             clazz.apply( this, args );
         };
+        provider.ctor.prototype = Object.create( clazz.prototype );
+        provider.ctor.prototype.constructor = clazz;
 
-        provider.ctor.prototype = proto;
+        // provider.ctor = class extends clazz {
+        //     constructor( args ){
+        //         resolveDependencies( this ); // *sigh*
+        //         super(...args);
+        //     }
+        // };
 
         function resolveDependencies( obj ){
             let slotset =  context[ context.length-1 ];
             for( let key in injections ){
                 let slot = slotset[ injections[key] ];
-                let provider = slot.getViable( key );
+                let provider = slot.getViable( key, tags[key] );
                 obj[key] = provider.policy([]);
             }
         }        
