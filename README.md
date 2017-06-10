@@ -29,7 +29,7 @@ So I wrote a tiny little framework where you write code like this:
             
             console.log("creating mouth");
             
-            // food is a property injected after the declaration.
+            // food is an injected property.
             this.food.eat(); 
 
         }
@@ -44,14 +44,22 @@ So I wrote a tiny little framework where you write code like this:
     // IFood-like things go in the "food" property.
     inject({ food:IFood }).into( Mouth ); 
 
+    // register Doritos as a kind of IFood.
+    bind(Doritos).to(IFood);
 
-    bind(Doritos).to(IFood);            // register Doritos as a kind of IFood.
-    bind(Mouth).to("main").singleton(); // register Mouth as a singleton called "main".
+    // register Mouth as a singleton called "main".
+    bind(Mouth).to("main").singleton(); 
 
-    getInstanceOf("main");          // Create a Mouth, inject food into it before calling the constructor.
+    // Create a Mouth
+    // Create Doritos
+    // Inject doritos into mouth.
+    // Call the Mouth constructor.
+    // Return mouth
+    let mouth = getInstanceOf("main"); // HERE BE MAGIC!         
     
     // Mouth is a singleton, so don't create a new one.
-    // Just get the old one, instead. Eat some more.
+    // Just get the previous one, instead.
+    // Then eat some more!
     getInstanceOf("main").again();  
 
 As you can see, properties are automatically injected before the constructor is called.
@@ -62,20 +70,24 @@ That means that you don't need to do this common nonsense:
         dependency1:IPropertyType;
         dependency2:IPropertyType;
         dependency3:IPropertyType;
-        constructor( dependency1:IPropertyType, dependency2:IPropertyType, dependency3:IPropertyType ){
+        constructor( 
+                dependency1:IPropertyType, 
+                dependency2:IPropertyType, 
+                dependency3:IPropertyType 
+            ){
             this.dependency1 = dependency1;
             this.dependency2 = dependency2;
             this.dependency3 = dependency3;
         }
     }
 
-When you have lots of classes with lots of dependencies, this gets old really quick.
+When you have lots of classes with lots of dependencies, this gets old fast.
 
 Also visible in the example is that you can use names instead of interface classes.
-While outside the scope of this library, this allows you to do things like:
+This allows you to do things like:
 
     // in HTML file
-    <di class="BoopController">boop</di> 
+    <di class="IBoop">boop</di> 
 
     // in JS
     class BoopController {
@@ -83,7 +95,7 @@ While outside the scope of this library, this allows you to do things like:
             // do stuff with element
         }
     }
-    bind(BoopController).to('BoopController'); 
+    bind(BoopController).to('IBoop'); 
 
     // create a controller for each element
     Array.from(document.getElementsByTagName('di'))
