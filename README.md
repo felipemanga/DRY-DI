@@ -1,8 +1,13 @@
 # DRY-DI
-DRY-DI: ES6 Dependency Injection where you Don't Repeat Yourself. Now with 100% more Interfaces!
+DRY-DI: ES5/6 Dependency Injection where you Don't Repeat Yourself. 
+Now with 100% more Interfaces!
 
+## INSTALL
 
-Yet another DI container?!
+    npm install --save dry-di
+
+## Yet another DI container?!
+
 Well, I was annoyed by 3 things in other DI libraries:
 - Dependency on larger frameworks and/or TypeScript.
 - Verbose and/or hard-to-read code.

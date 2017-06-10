@@ -1,5 +1,13 @@
+(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+"use strict";
 
-module.exports = {bind, inject, getInstanceOf};
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+module.exports = { bind: bind, inject: inject, getInstanceOf: getInstanceOf };
 
 /*
 
@@ -7,316 +15,324 @@ Welcome to DRY-DI.
 
 */
 
+var knownInterfaces = [];
+var interfaces = {};
+var concretions = {};
 
-let knownInterfaces = [];
-let interfaces = {};
-let concretions = {};
+var context = [{}];
 
-let context = [{}];
+var Ref = function () {
+    function Ref(provider, ifid, scope) {
+        _classCallCheck(this, Ref);
 
-class Ref {
-
-    constructor( provider, ifid, scope ){
         this.provider = provider;
         this.ifid = ifid;
         this.count = provider.dependencyCount;
         this.scope = scope;
 
-        let pslot = scope[ ifid ] || (scope[ ifid ] = new Slot());
+        var pslot = scope[ifid] || (scope[ifid] = new Slot());
 
-        if( provider.injections ){
-            for( var key in provider.injections ){
+        if (provider.injections) {
+            for (var key in provider.injections) {
 
-                let ifid = provider.injections[key];
+                var _ifid = provider.injections[key];
 
-                let slot = scope[ ifid ] || (scope[ifid] = new Slot());
-                slot.addInjector( this );
-
+                var slot = scope[_ifid] || (scope[_ifid] = new Slot());
+                slot.addInjector(this);
             }
         }
 
-        pslot.addProvider( this );
-
+        pslot.addProvider(this);
     }
 
-    satisfy(){
+    _createClass(Ref, [{
+        key: "satisfy",
+        value: function satisfy() {
 
-        this.count--;
+            this.count--;
 
-        if( this.count == 0 )
-            this.scope[ this.ifid ].addViable();
+            if (this.count == 0) this.scope[this.ifid].addViable();
+        }
+    }]);
 
-    }
+    return Ref;
+}();
 
-}
-
-class Slot{
-
-    constructor(){
+var Slot = function () {
+    function Slot() {
+        _classCallCheck(this, Slot);
 
         this.viableProviders = 0;
         this.providers = [];
         this.injectors = [];
-        
     }
 
-    addInjector( ref ){
+    _createClass(Slot, [{
+        key: "addInjector",
+        value: function addInjector(ref) {
 
-        this.injectors.push( ref );
-        if( this.viableProviders > 0 )
-            ref.satisfy();
-
-    }
-
-    addProvider( ref ){
-
-        this.providers.push(ref);
-        if( ref.count == 0 )
-            this.addViable();
-        
-    }
-
-    addViable(){
-
-        this.viableProviders++;
-        if( this.viableProviders == 1 ){
-
-            let injectors = this.injectors;
-            for( let i=0, l=injectors.length; i<l; ++i )
-                injectors[i].satisfy();
-
+            this.injectors.push(ref);
+            if (this.viableProviders > 0) ref.satisfy();
         }
+    }, {
+        key: "addProvider",
+        value: function addProvider(ref) {
 
-    }
-
-    getViable( clazz ){
-
-        if( this.viableProviders == 0 )
-            throw new Error("No viable providers for " + clazz);
-        
-        for( let i=0, c; c = this.providers[i]; ++i ){
-            if( !c.count )
-                return c.provider;
+            this.providers.push(ref);
+            if (ref.count == 0) this.addViable();
         }
-        
-    }
-}
+    }, {
+        key: "addViable",
+        value: function addViable() {
 
-function registerInterface( ifc ){
+            this.viableProviders++;
+            if (this.viableProviders == 1) {
 
-    let props = {}, currifc;
+                var injectors = this.injectors;
+                for (var i = 0, l = injectors.length; i < l; ++i) {
+                    injectors[i].satisfy();
+                }
+            }
+        }
+    }, {
+        key: "getViable",
+        value: function getViable(clazz) {
 
-    if( typeof ifc == "function" ) currifc = ifc.prototype;
-    else if( typeof ifc == "object" ) currifc = ifc;
+            if (this.viableProviders == 0) throw new Error("No viable providers for " + clazz);
 
-    while( currifc && currifc !== Object.prototype ){
+            for (var i = 0, c; c = this.providers[i]; ++i) {
+                if (!c.count) return c.provider;
+            }
+        }
+    }]);
 
-        let names = Object.getOwnPropertyNames( ifc.prototype );
+    return Slot;
+}();
 
-        for( let i=0, l=names.length; i<l; ++i ){
-            let name = names[i];
+function registerInterface(ifc) {
 
-            if( !props[name] )
-                props[name] = typeof ifc.prototype[name];
-            
+    var props = {},
+        currifc = void 0;
+
+    if (typeof ifc == "function") currifc = ifc.prototype;else if ((typeof ifc === "undefined" ? "undefined" : _typeof(ifc)) == "object") currifc = ifc;
+
+    while (currifc && currifc !== Object.prototype) {
+
+        var names = Object.getOwnPropertyNames(ifc.prototype);
+
+        for (var i = 0, l = names.length; i < l; ++i) {
+            var name = names[i];
+
+            if (!props[name]) props[name] = _typeof(ifc.prototype[name]);
         }
 
         currifc = currifc.prototype;
     }
 
-    let len = knownInterfaces.length;
-    interfaces[ len ] = props;
-    knownInterfaces[ len ] = ifc;
+    var len = knownInterfaces.length;
+    interfaces[len] = props;
+    knownInterfaces[len] = ifc;
 
     return len;
-
 }
 
+var Provide = function () {
+    function Provide() {
+        _classCallCheck(this, Provide);
 
-class Provide {
+        this.injections = null;
+        this.dependencyCount = 0;
+        this.clazz = null;
 
-    injections = null;
-    dependencyCount = 0;
-    clazz = null;
+        this.policy = function (args) {
+            return new this.ctor(args);
+        };
+    }
 
     // default policy is to create a new instance for each injection
-    policy = function( args ){
-        return new this.ctor(args);
-    };
 
-    getRef( _interface ){
 
-        let ifid = knownInterfaces.indexOf( _interface );
-        if( ifid == -1 )
-            ifid = registerInterface( _interface );
+    _createClass(Provide, [{
+        key: "getRef",
+        value: function getRef(_interface) {
 
-        let map = interfaces[ ifid ], clazz = this.clazz;
+            var ifid = knownInterfaces.indexOf(_interface);
+            if (ifid == -1) ifid = registerInterface(_interface);
 
-        for( let key in map ){
-            if( typeof clazz.prototype[key] == map[key] )
-                continue;
-            throw new Error(`Class ${clazz.name} can't provide to interface ${_interface.name} because ${key} is ` + (typeof clazz[key]) + " instead of " + map[key] + "." );
+            var map = interfaces[ifid],
+                clazz = this.clazz;
+
+            for (var key in map) {
+                if (_typeof(clazz.prototype[key]) == map[key]) continue;
+                throw new Error("Class " + clazz.name + " can't provide to interface " + _interface.name + " because " + key + " is " + _typeof(clazz[key]) + " instead of " + map[key] + ".");
+            }
+
+            return new Ref(this, ifid, context[context.length - 1]);
         }
+    }, {
+        key: "setConcretion",
+        value: function setConcretion(clazz) {
 
-        return new Ref( this, ifid, context[ context.length - 1 ] );
+            this.clazz = clazz;
+            if (typeof clazz == "function") {
+                this.ctor = function (args) {
+                    clazz.apply(this, args);
+                };
+                this.ctor.prototype = Object.create(clazz.prototype);
+            } else {
+                this.policty = function () {
+                    return clazz;
+                };
+            }
 
-    }
+            var cid = knownInterfaces.indexOf(clazz);
+            if (cid == -1) cid = registerInterface(clazz);
 
-    setConcretion( clazz ){
+            if (!concretions[cid]) concretions[cid] = [this];else concretions[cid].push(this);
 
-        this.clazz = clazz;
-        if( typeof clazz == "function" ){
-            this.ctor = function( args ){ clazz.apply( this, args ); };
-            this.ctor.prototype = Object.create(clazz.prototype);
-        }else{
-            this.policty = () => clazz;
+            return this;
         }
-        
-        let cid = knownInterfaces.indexOf( clazz );
-        if( cid == -1 )
-            cid = registerInterface( clazz );
-        
-        if( !concretions[cid] ) concretions[cid] = [this];
-        else concretions[cid].push(this);            
+    }, {
+        key: "factory",
+        value: function factory() {
 
-        return this;
+            this.policy = function () {
 
-    }
-
-    factory(){
-
-        this.policy = function(){
-
-            return function( args ){
-                return new this.ctor(args);
+                return function (args) {
+                    return new this.ctor(args);
+                };
             };
 
+            return this;
         }
+    }, {
+        key: "singleton",
+        value: function singleton() {
 
-        return this;
+            var instance = null;
+            this.policy = function (args) {
 
-    }
+                if (instance) return instance;
 
-    singleton(){
+                instance = Object.create(this.clazz.prototype);
 
-        let instance = null;
-        this.policy = function( args ){
+                return this.ctor.call(instance, args);
+            };
 
-            if( instance )
-                return instance;
+            return this;
+        }
+    }]);
 
-            instance = Object.create( this.clazz.prototype );
+    return Provide;
+}();
 
-            return this.ctor.call( instance, args );
+function bind(clazz) {
 
-        };
+    var cid = knownInterfaces.indexOf(clazz);
+    if (cid == -1) cid = registerInterface(clazz);
 
-        return this;
-
-    }
-
-}
-
-function bind(clazz){
-
-    let cid = knownInterfaces.indexOf( clazz );
-    if( cid == -1 )
-        cid = registerInterface( clazz );
-    
-    let providers = concretions[cid];
-    if( !providers ){
-        let provider = (new Provide()).setConcretion(clazz);
+    var providers = concretions[cid];
+    if (!providers) {
+        var provider = new Provide().setConcretion(clazz);
         providers = concretions[cid];
     }
 
-    let partialBind = {
-        to:function( _interface ){
-            for( let i=0, l=providers.length; i<l; ++i ){
-                let provider = providers[i];
-                provider.getRef( _interface ); // ref indexes itself
+    var partialBind = {
+        to: function to(_interface) {
+            for (var i = 0, l = providers.length; i < l; ++i) {
+                var _provider = providers[i];
+                _provider.getRef(_interface); // ref indexes itself
             }
             return this;
         },
-        singleton:function(){
-            for( let i=0, l=providers.length; i<l; ++i ){
+        singleton: function singleton() {
+            for (var i = 0, l = providers.length; i < l; ++i) {
                 providers[i].singleton();
             }
             return this;
         },
-        factory:function(){
-            for( let i=0, l=providers.length; i<l; ++i ){
+        factory: function factory() {
+            for (var i = 0, l = providers.length; i < l; ++i) {
                 providers[i].factory();
             }
             return this;
         }
-    }
-    
+    };
+
     return partialBind;
 }
 
-class Inject{
-    constructor(dependencies){
+var Inject = function () {
+    function Inject(dependencies) {
+        _classCallCheck(this, Inject);
+
         this.dependencies = dependencies;
     }
 
-    into( clazz ){
+    _createClass(Inject, [{
+        key: "into",
+        value: function into(clazz) {
 
-        let cid = knownInterfaces.indexOf( clazz );
-        if( cid == -1 )
-            cid = registerInterface( clazz );
-        
-        let injections = {}, map = this.dependencies;
+            var cid = knownInterfaces.indexOf(clazz);
+            if (cid == -1) cid = registerInterface(clazz);
 
-        for( let key in map ){
+            var injections = {},
+                map = this.dependencies;
 
-            let ifid = knownInterfaces.indexOf( map[key] );
+            for (var key in map) {
 
-            if( ifid == -1 )
-                ifid = registerInterface( map[key] );
-            
-            injections[key] = ifid;
+                var ifid = knownInterfaces.indexOf(map[key]);
 
-            this.dependencyCount++;
+                if (ifid == -1) ifid = registerInterface(map[key]);
 
-        }
+                injections[key] = ifid;
 
-        let provider = (new Provide()).setConcretion( clazz ), proto = clazz.prototype;
-        let providers = concretions[cid];
-        
-
-        provider.ctor = function( args ){
-            resolveDependencies( this );
-            clazz.apply( this, args );
-        };
-
-        provider.ctor.prototype = proto;
-
-        function resolveDependencies( obj ){
-            let slotset =  context[ context.length-1 ];
-            for( let key in injections ){
-                let slot = slotset[ injections[key] ];
-                let provider = slot.getViable( key );
-                obj[key] = provider.policy([]);
+                this.dependencyCount++;
             }
-        }        
+
+            var provider = new Provide().setConcretion(clazz),
+                proto = clazz.prototype;
+            var providers = concretions[cid];
+
+            provider.ctor = function (args) {
+                resolveDependencies(this);
+                clazz.apply(this, args);
+            };
+
+            provider.ctor.prototype = proto;
+
+            function resolveDependencies(obj) {
+                var slotset = context[context.length - 1];
+                for (var _key in injections) {
+                    var slot = slotset[injections[_key]];
+                    var _provider2 = slot.getViable(_key);
+                    obj[_key] = _provider2.policy([]);
+                }
+            }
+        }
+    }]);
+
+    return Inject;
+}();
+
+function inject(dependencies) {
+    return new Inject(dependencies);
+}
+
+function getInstanceOf(_interface) {
+
+    var ifid = knownInterfaces.indexOf(_interface);
+    var slot = context[context.length - 1][ifid];
+
+    if (!slot) throw new Error("No viable providers for " + _interface.name);
+
+    var provider = slot.getViable();
+
+    for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key2 = 1; _key2 < _len; _key2++) {
+        args[_key2 - 1] = arguments[_key2];
     }
+
+    return provider.policy.call(provider, args);
 }
 
-function inject( dependencies ){
-    return new Inject( dependencies );
-}
-
-function getInstanceOf( _interface, ...args ){
-
-        let ifid = knownInterfaces.indexOf( _interface );
-        let slot = context[ context.length-1 ][ ifid ];
-
-        if( !slot )
-            throw new Error("No viable providers for " + _interface.name);
-        
-        let provider = slot.getViable();
-        
-        return provider.policy.call( provider, args );
-}
-
-
+},{}]},{},[1]);
