@@ -1,5 +1,5 @@
 # DRY-DI
-DRY-DI: ES5/6 Dependency Injection where you Don't Repeat Yourself. 
+DRY-DI: ES5/6* Dependency Injection where you Don't Repeat Yourself. 
 
 - Works in the Browser or in NodeJS!
 - Now with 100% more Interfaces!
@@ -11,6 +11,8 @@ DRY-DI: ES5/6 Dependency Injection where you Don't Repeat Yourself.
 ## INSTALL
 
     npm install --save dry-di
+
+    You should also install Babel, as ES6 has some limitations.
 
 
 ## Yet another DI container?!
@@ -77,10 +79,7 @@ So I wrote a tiny little framework where you write code like this:
     // Then eat some more!
     getInstanceOf("main").again();  
 
-As you can see, properties are automatically injected before the constructor is called.
-This feature isn't possible in ES6, however, so you must use a transpiler to convert it to ES5.
-
-On the other hand, that means you don't need to do this common nonsense:
+Properties are automatically injected before the constructor is called. This feature isn't possible in ES6, however, so you must use a transpiler to convert it to ES5. On the other hand, that means you don't need to do this common pattern all over the place:
 
     class A {
         dependency1:IPropertyType;
@@ -114,6 +113,14 @@ It is possible to use tags for disambiguation. In the following example, Doritos
 
     // register Cabbage as healthy IFood.
     bind(Cabbage).to(IFood).withTags({ healthy:true });
+
+It is also possible to inject arrays of things with the syntax:
+
+```inject({foods:[ IFood,[] ]}).into( Mouth ); // inject all foods```
+
+Of course, this can be used together with tags:
+
+```inject({foods:[ IFood,[], {tasty:true} ]}).into( Mouth ); // inject all tasty foods```
 
 ## Strings as Interfaces
 Also visible in the example is that you can use names instead of interface classes.
