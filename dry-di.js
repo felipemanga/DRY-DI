@@ -89,10 +89,15 @@ class Slot{
 
     }
 
-    getViable( clazz, tags ){
+    getViable( clazz, tags, multiple ){
 
-        if( this.viableProviders == 0 )
-            throw new Error("No viable providers for " + clazz);
+        if( this.viableProviders == 0 ){
+            if( !multiple )
+                throw new Error("No viable providers for " + clazz);
+            return [];
+        }
+
+        let ret = multiple ? [] : null;
         
         let mostViable = null;
         let maxPoints = -1;
@@ -105,16 +110,23 @@ class Slot{
                     points++;
                 }
             }
-            if( points > maxPoints ){
-                maxPoints = points;
-                mostViable = c;
+            if( multiple )
+                ret[ret.length] = c.provider;
+            else{
+                if( points > maxPoints ){
+                    maxPoints = points;
+                    mostViable = c;
+                }
             }
         }
         
-        if( !mostViable )
-            throw new Error("No viable providers for " + clazz + ". Tag mismatch.");
-        
-        return mostViable.provider;
+        if( !multiple ){
+            if( !mostViable )
+                throw new Error("No viable providers for " + clazz + ". Tag mismatch.");
+            
+            return mostViable.provider;
+        }else
+            return ret;
     }
 }
 
@@ -314,20 +326,30 @@ class Inject{
         if( cid == -1 )
             cid = registerInterface( clazz );
         
-        let injections = {}, map = this.dependencies, dependencyCount = 0, tags = this.tags;
+        let injections = {}, 
+            map = this.dependencies, 
+            dependencyCount = 0, 
+            tags = this.tags,
+            multiple = {};
 
         for( let key in map ){
 
             var _interface =  map[key]
             var dependency = _interface;
             if( Array.isArray(dependency) ){
+
                 _interface = _interface[0];
                 for( let i=1; i<dependency.length; ++i ){
+
                     if( typeof dependency[i] == "string" )
                         tags[key][dependency[i]] = true;
-                    else
+                    else if( Array.isArray(dependency[i]) )
+                        multiple[key] = true;
+                    else if( dependency[i] )
                         Object.assign( tags[key], dependency[i] );
+
                 }
+
             }
 
             let ifid = knownInterfaces.indexOf( _interface );
@@ -365,8 +387,14 @@ class Inject{
             let slotset =  context[ context.length-1 ];
             for( let key in injections ){
                 let slot = slotset[ injections[key] ];
-                let provider = slot.getViable( key, tags[key] );
-                obj[key] = provider.policy([]);
+                let provider = slot.getViable( key, tags[key], multiple[key] );
+                if( !multiple[key] )
+                    obj[key] = provider.policy([]);
+                else{
+                    let out = obj[key] = [];
+                    for( let i=0; i<provider.length; ++i )
+                        out[i] = provider[i].policy([]);
+                }
             }
         }        
     }
@@ -378,15 +406,15 @@ function inject( dependencies ){
 
 function getInstanceOf( _interface, ...args ){
 
-        let ifid = knownInterfaces.indexOf( _interface );
-        let slot = context[ context.length-1 ][ ifid ];
+    let ifid = knownInterfaces.indexOf( _interface );
+    let slot = context[ context.length-1 ][ ifid ];
 
-        if( !slot )
-            throw new Error("No viable providers for " + _interface.name);
-        
-        let provider = slot.getViable();
-        
-        return provider.policy.call( provider, args );
+    if( !slot )
+        throw new Error("No viable providers for " + _interface.name);
+    
+    let provider = slot.getViable();
+    
+    return provider.policy.call( provider, args );
 }
 
 

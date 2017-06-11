@@ -100,9 +100,14 @@ var Slot = function () {
         }
     }, {
         key: "getViable",
-        value: function getViable(clazz, tags) {
+        value: function getViable(clazz, tags, multiple) {
 
-            if (this.viableProviders == 0) throw new Error("No viable providers for " + clazz);
+            if (this.viableProviders == 0) {
+                if (!multiple) throw new Error("No viable providers for " + clazz);
+                return [];
+            }
+
+            var ret = multiple ? [] : null;
 
             var mostViable = null;
             var maxPoints = -1;
@@ -115,15 +120,19 @@ var Slot = function () {
                         points++;
                     }
                 }
-                if (points > maxPoints) {
-                    maxPoints = points;
-                    mostViable = c;
+                if (multiple) ret[ret.length] = c.provider;else {
+                    if (points > maxPoints) {
+                        maxPoints = points;
+                        mostViable = c;
+                    }
                 }
             }
 
-            if (!mostViable) throw new Error("No viable providers for " + clazz + ". Tag mismatch.");
+            if (!multiple) {
+                if (!mostViable) throw new Error("No viable providers for " + clazz + ". Tag mismatch.");
 
-            return mostViable.provider;
+                return mostViable.provider;
+            } else return ret;
         }
     }]);
 
@@ -339,16 +348,19 @@ var Inject = function () {
             var injections = {},
                 map = this.dependencies,
                 dependencyCount = 0,
-                tags = this.tags;
+                tags = this.tags,
+                multiple = {};
 
             for (var key in map) {
 
                 var _interface = map[key];
                 var dependency = _interface;
                 if (Array.isArray(dependency)) {
+
                     _interface = _interface[0];
                     for (var i = 1; i < dependency.length; ++i) {
-                        if (typeof dependency[i] == "string") tags[key][dependency[i]] = true;else Object.assign(tags[key], dependency[i]);
+
+                        if (typeof dependency[i] == "string") tags[key][dependency[i]] = true;else if (Array.isArray(dependency[i])) multiple[key] = true;else if (dependency[i]) Object.assign(tags[key], dependency[i]);
                     }
                 }
 
@@ -386,8 +398,13 @@ var Inject = function () {
                 var slotset = context[context.length - 1];
                 for (var _key2 in injections) {
                     var slot = slotset[injections[_key2]];
-                    var _provider2 = slot.getViable(_key2, tags[_key2]);
-                    obj[_key2] = _provider2.policy([]);
+                    var _provider2 = slot.getViable(_key2, tags[_key2], multiple[_key2]);
+                    if (!multiple[_key2]) obj[_key2] = _provider2.policy([]);else {
+                        var out = obj[_key2] = [];
+                        for (var _i = 0; _i < _provider2.length; ++_i) {
+                            out[_i] = _provider2[_i].policy([]);
+                        }
+                    }
                 }
             }
         }
