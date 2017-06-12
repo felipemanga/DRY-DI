@@ -350,7 +350,11 @@ var Provide = function () {
 function bind(clazz) {
 
     var cid = knownInterfaces.indexOf(clazz);
-    if (cid == -1) cid = registerInterface(clazz);
+    if (cid == -1) {
+        cid = registerInterface(clazz);
+
+        if (clazz && clazz["@inject"]) inject(clazz["@inject"]).into(clazz);
+    }
 
     var provider = void 0;
     var providers = concretions[cid];

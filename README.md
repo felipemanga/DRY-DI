@@ -98,6 +98,20 @@ Properties are automatically injected before the constructor is called. This fea
 
 When you have lots of classes with lots of dependencies, this gets old fast.
 
+If you're using Babel for transpiling, you can make use of the "transform-class-properties" plugin to put your injections inside the class:
+
+    class Cabbage extends IFood {
+
+        static "@inject" = {
+            color:"IColor"
+        };
+
+        eat(){
+            console.log("eating " + this.color + " cabbage");
+        }
+
+    }
+
 ## Injection Tags
 It is possible to use tags for disambiguation. In the following example, Doritos will get injected into the Mouth as food, but not as healthyFood.
 
@@ -118,9 +132,9 @@ It is also possible to inject arrays of things with the syntax:
 
 ```inject({foods:[ IFood,[] ]}).into( Mouth ); // inject all foods```
 
-Of course, this can be used together with tags:
+Of course, this can be used together with tags and/or static properties:
 
-```inject({foods:[ IFood,[], {tasty:true} ]}).into( Mouth ); // inject all tasty foods```
+``` static "@inject" = { foods:[ IFood,[], {tasty:true}] }; ```  // inject all tasty foods```
 
 ## Strings as Interfaces & Explicit Injection Binding
 Also visible in the example is that you can use names instead of interface classes.
@@ -128,11 +142,15 @@ This allows you to do things like instancing classes from HTML or defining varia
 
     // Believe it or not, Cabbage actually is food!
     class Cabbage extends IFood {
+
+        static "@inject" = {
+            color:"IColor"
+        };
+
         eat(){
             console.log("eating " + this.color + " cabbage");
         }
     }
-    inject({ color:"IColor" }).into(Cabbage);
 
     bind(Cabbage).to("PurpleCabbage").injecting( ["purple", "IColor"] );
     bind(Cabbage).to("GreenCabbage").injecting( ["green", "IColor"] );

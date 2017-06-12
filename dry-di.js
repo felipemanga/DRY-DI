@@ -271,7 +271,7 @@ class Provide {
             cid = registerInterface( clazz );
         
         if( !concretions[cid] ) concretions[cid] = [this];
-        else concretions[cid].push(this);            
+        else concretions[cid].push(this);
 
         return this;
 
@@ -323,8 +323,13 @@ class Provide {
 function bind(clazz){
 
     let cid = knownInterfaces.indexOf( clazz );
-    if( cid == -1 )
+    if( cid == -1 ){
         cid = registerInterface( clazz );
+
+        if( clazz && clazz["@inject"] )
+            inject( clazz["@inject"] ).into( clazz );
+
+    }
     
     let provider;
     let providers = concretions[cid];
