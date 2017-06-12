@@ -122,22 +122,19 @@ Of course, this can be used together with tags:
 
 ```inject({foods:[ IFood,[], {tasty:true} ]}).into( Mouth ); // inject all tasty foods```
 
-## Strings as Interfaces
+## Strings as Interfaces & Explicit Injection Binding
 Also visible in the example is that you can use names instead of interface classes.
-This allows you to do things like:
+This allows you to do things like instancing classes from HTML or defining variations of a class:
 
-    // in HTML file
-    <di class="IBoop">boop</di> 
-
-    // in JS
-    class BoopController {
-        controller( element ){
-            // do stuff with element
+    // Believe it or not, Cabbage actually is food!
+    class Cabbage extends IFood {
+        eat(){
+            console.log("eating " + this.color + " cabbage");
         }
     }
-    bind(BoopController).to('IBoop'); 
+    inject({ color:"IColor" }).into(Cabbage);
 
-    // create a controller for each element
-    Array.from(document.getElementsByTagName('di'))
-         .forEach( element => getInstanceOf(element.className, element) );
+    bind(Cabbage).to("PurpleCabbage").injecting( ["purple", "IColor"] );
+    bind(Cabbage).to("GreenCabbage").injecting( ["green", "IColor"] );
 
+Here, two variants of Cabbage are defined, with different injections for the IColor type. This can be combined with tags for diferenciation or used with array injection, if you need all the different types of cabbage.

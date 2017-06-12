@@ -1,5 +1,6 @@
-
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
@@ -29,18 +30,23 @@ var Ref = function () {
     function Ref(provider, ifid, scope) {
         _classCallCheck(this, Ref);
 
-        this.provider = provider;
         this.ifid = ifid;
         this.count = provider.dependencyCount;
+        this.dependencyCount = provider.dependencyCount;
         this.scope = scope;
+
+        this.binds = {};
+        this.injections = null;
+        this.provider = provider;
 
         var pslot = scope[ifid] || (scope[ifid] = new Slot());
 
         if (provider.injections) {
-            for (var key in provider.injections) {
+            this.injections = {};
+            Object.assign(this.injections, provider.injections);
 
-                var _ifid = provider.injections[key];
-
+            for (var key in this.injections) {
+                var _ifid = this.injections[key];
                 var slot = scope[_ifid] || (scope[_ifid] = new Slot());
                 slot.addInjector(this);
             }
@@ -50,6 +56,29 @@ var Ref = function () {
     }
 
     _createClass(Ref, [{
+        key: "bindInjections",
+        value: function bindInjections(injections) {
+            var _this = this;
+
+            injections.forEach(function (_ref) {
+                var _ref2 = _slicedToArray(_ref, 2),
+                    clazz = _ref2[0],
+                    _interface = _ref2[1];
+
+                var key = knownInterfaces.indexOf(_interface);
+                var injection = injections[key];
+
+                if (!(key in _this.binds)) {
+                    var ifid = _this.injections[key];
+                    _this.scope[_this.ifid].removeInjector(_this);
+                    _this.satisfy();
+                    _this.dependencyCount--;
+                }
+
+                _this.binds[key] = clazz;
+            });
+        }
+    }, {
         key: "satisfy",
         value: function satisfy() {
 
@@ -79,6 +108,13 @@ var Slot = function () {
             if (this.viableProviders > 0) ref.satisfy();
         }
     }, {
+        key: "removeInjector",
+        value: function removeInjector(ref) {
+
+            var index = this.injectors.indexOf(ref);
+            if (index > -1) this.injectors.splice(index, 1);
+        }
+    }, {
         key: "addProvider",
         value: function addProvider(ref) {
 
@@ -103,7 +139,7 @@ var Slot = function () {
         value: function getViable(clazz, tags, multiple) {
 
             if (this.viableProviders == 0) {
-                if (!multiple) throw new Error("No viable providers for " + clazz);
+                if (!multiple) throw new Error("No viable providers for " + clazz + ". #126");
                 return [];
             }
 
@@ -113,14 +149,14 @@ var Slot = function () {
             var maxPoints = -1;
             notViable: for (var i = 0, c; c = this.providers[i]; ++i) {
                 if (c.count) continue;
-                var points = c.provider.dependencyCount;
+                var points = c.dependencyCount;
                 if (tags && c.tags) {
                     for (var tag in tags) {
                         if (c.tags[tag] !== tags[tag]) continue notViable;
                         points++;
                     }
                 }
-                if (multiple) ret[ret.length] = c.provider;else {
+                if (multiple) ret[ret.length] = c.provider.policy.bind(c.provider, c.binds);else {
                     if (points > maxPoints) {
                         maxPoints = points;
                         mostViable = c;
@@ -131,7 +167,7 @@ var Slot = function () {
             if (!multiple) {
                 if (!mostViable) throw new Error("No viable providers for " + clazz + ". Tag mismatch.");
 
-                return mostViable.provider;
+                return mostViable.provider.policy.bind(mostViable.provider, mostViable.binds);
             } else return ret;
         }
     }]);
@@ -173,14 +209,51 @@ var Provide = function () {
         this.injections = null;
         this.dependencyCount = 0;
         this.clazz = null;
+        this.ctor = null;
+        this.binds = null;
 
         // default policy is to create a new instance for each injection
-        this.policy = function (args) {
-            return new this.ctor(args);
+        this.policy = function (binds, args) {
+            return new this.ctor(binds, args);
         };
     }
 
     _createClass(Provide, [{
+        key: "clone",
+        value: function clone() {
+
+            var ret = new Provide();
+
+            ret.injections = this.injections;
+            ret.dependencyCount = this.dependencyCount;
+            ret.clazz = this.clazz;
+            ret.policy = this.policy;
+            ret.ctor = this.ctor;
+            ret.binds = this.binds;
+
+            return ret;
+        }
+    }, {
+        key: "bindInjections",
+        value: function bindInjections(injections) {
+
+            var binds = this.binds = this.binds || [];
+            var bindCount = this.binds.length;
+
+            injections.forEach(function (_ref3) {
+                var _ref4 = _slicedToArray(_ref3, 2),
+                    clazz = _ref4[0],
+                    _interface = _ref4[1];
+
+                for (var i = 0; i < bindCount; ++i) {
+                    if (binds[i][0] == clazz) return;
+                }
+                binds[binds.length] = [clazz, _interface];
+            });
+
+            return this;
+        }
+    }, {
         key: "getRef",
         value: function getRef(ifid, _interface) {
 
@@ -204,11 +277,11 @@ var Provide = function () {
                     _inherits(_class, _clazz);
 
                     function _class(args) {
-                        var _ref;
+                        var _ref5;
 
                         _classCallCheck(this, _class);
 
-                        return _possibleConstructorReturn(this, (_ref = _class.__proto__ || Object.getPrototypeOf(_class)).call.apply(_ref, [this].concat(_toConsumableArray(args))));
+                        return _possibleConstructorReturn(this, (_ref5 = _class.__proto__ || Object.getPrototypeOf(_class)).call.apply(_ref5, [this].concat(_toConsumableArray(args))));
                     }
 
                     return _class;
@@ -231,14 +304,14 @@ var Provide = function () {
         key: "factory",
         value: function factory() {
 
-            this.policy = function (args) {
+            this.policy = function (binds, args) {
 
                 return function () {
                     for (var _len = arguments.length, args2 = Array(_len), _key = 0; _key < _len; _key++) {
                         args2[_key] = arguments[_key];
                     }
 
-                    return new this.ctor(args.concat(args2));
+                    return new this.ctor(binds, args.concat(args2));
                 };
             };
 
@@ -249,13 +322,13 @@ var Provide = function () {
         value: function singleton() {
 
             var instance = null;
-            this.policy = function (args) {
+            this.policy = function (binds, args) {
 
                 if (instance) return instance;
 
                 instance = Object.create(this.ctor.prototype);
                 instance.constructor = this.ctor;
-                this.ctor.call(instance, args);
+                this.ctor.call(instance, binds, args);
 
                 // new (class extends this.ctor{
                 //     constructor( args ){
@@ -279,11 +352,18 @@ function bind(clazz) {
     var cid = knownInterfaces.indexOf(clazz);
     if (cid == -1) cid = registerInterface(clazz);
 
+    var provider = void 0;
     var providers = concretions[cid];
+    var localProviders = [];
+
     if (!providers) {
-        var provider = new Provide().setConcretion(clazz);
+        provider = new Provide().setConcretion(clazz);
         providers = concretions[cid];
     }
+
+    localProviders = providers.map(function (partial) {
+        return partial.clone();
+    });
 
     var refs = [];
     var tags = null;
@@ -291,15 +371,16 @@ function bind(clazz) {
 
     var partialBind = {
         to: function to(_interface) {
+
             var ifid = knownInterfaces.indexOf(_interface);
             if (ifid == -1) ifid = registerInterface(_interface);
 
-            for (var i = 0, l = providers.length; i < l; ++i) {
-                var _provider = providers[i];
-                var ref = _provider.getRef(ifid, _interface);
+            localProviders.forEach(function (provider) {
+
+                var ref = provider.getRef(ifid, _interface);
                 ref.tags = tags;
                 refs.push(ref);
-            }
+            });
 
             return this;
         },
@@ -308,20 +389,38 @@ function bind(clazz) {
             refs.forEach(function (ref) {
                 return ref.tags = tags;
             });
+            return this;
         },
 
         singleton: function singleton() {
-            for (var i = 0, l = providers.length; i < l; ++i) {
-                providers[i].singleton();
-            }
+            localProviders.forEach(function (provider) {
+                return provider.singleton();
+            });
             return this;
         },
         factory: function factory() {
-            for (var i = 0, l = providers.length; i < l; ++i) {
-                providers[i].factory();
+            localProviders.forEach(function (provider) {
+                return provider.factory();
+            });
+            return this;
+        },
+        inject: function inject(map) {
+            return this.injecting(map);
+        },
+        injecting: function injecting() {
+            for (var _len2 = arguments.length, args = Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
+                args[_key2] = arguments[_key2];
             }
+
+            refs.forEach(function (ref) {
+                return ref.bindInjections(args);
+            });
+            localProviders.forEach(function (provider) {
+                return provider.bindInjections(args);
+            });
             return this;
         }
+
     };
 
     return partialBind;
@@ -380,8 +479,8 @@ var Inject = function () {
             provider.injections = injections;
             provider.dependencyCount = dependencyCount;
 
-            provider.ctor = function (args) {
-                resolveDependencies(this);
+            provider.ctor = function (binds, args) {
+                resolveDependencies(binds, this);
                 clazz.apply(this, args);
             };
             provider.ctor.prototype = Object.create(clazz.prototype);
@@ -394,15 +493,20 @@ var Inject = function () {
             //     }
             // };
 
-            function resolveDependencies(obj) {
+            function resolveDependencies(binds, obj) {
                 var slotset = context[context.length - 1];
-                for (var _key2 in injections) {
-                    var slot = slotset[injections[_key2]];
-                    var _provider2 = slot.getViable(_key2, tags[_key2], multiple[_key2]);
-                    if (!multiple[_key2]) obj[_key2] = _provider2.policy([]);else {
-                        var out = obj[_key2] = [];
-                        for (var _i = 0; _i < _provider2.length; ++_i) {
-                            out[_i] = _provider2[_i].policy([]);
+                for (var _key3 in injections) {
+                    if (binds && injections[_key3] in binds) {
+                        obj[_key3] = binds[injections[_key3]];
+                        continue;
+                    }
+
+                    var slot = slotset[injections[_key3]];
+                    var policy = slot.getViable(_key3, tags[_key3], multiple[_key3]);
+                    if (!multiple[_key3]) obj[_key3] = policy([]);else {
+                        var out = obj[_key3] = [];
+                        for (var _i2 = 0; _i2 < policy.length; ++_i2) {
+                            out[_i2] = policy[_i2]([]);
                         }
                     }
                 }
@@ -414,6 +518,7 @@ var Inject = function () {
 }();
 
 function inject(dependencies) {
+
     return new Inject(dependencies);
 }
 
@@ -422,13 +527,13 @@ function getInstanceOf(_interface) {
     var ifid = knownInterfaces.indexOf(_interface);
     var slot = context[context.length - 1][ifid];
 
-    if (!slot) throw new Error("No viable providers for " + _interface.name);
+    if (!slot) throw new Error("No viable providers for " + _interface.name + ". #467");
 
-    var provider = slot.getViable();
+    var policy = slot.getViable();
 
-    for (var _len2 = arguments.length, args = Array(_len2 > 1 ? _len2 - 1 : 0), _key3 = 1; _key3 < _len2; _key3++) {
-        args[_key3 - 1] = arguments[_key3];
+    for (var _len3 = arguments.length, args = Array(_len3 > 1 ? _len3 - 1 : 0), _key4 = 1; _key4 < _len3; _key4++) {
+        args[_key4 - 1] = arguments[_key4];
     }
 
-    return provider.policy.call(provider, args);
+    return policy.call(null, args);
 }

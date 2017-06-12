@@ -17,25 +17,48 @@ let context = [{}];
 class Ref {
 
     constructor( provider, ifid, scope ){
-        this.provider = provider;
         this.ifid = ifid;
         this.count = provider.dependencyCount;
+        this.dependencyCount = provider.dependencyCount;
         this.scope = scope;
+
+        this.binds = {};
+        this.injections = null;
+        this.provider = provider;
 
         let pslot = scope[ ifid ] || (scope[ ifid ] = new Slot());
 
         if( provider.injections ){
-            for( var key in provider.injections ){
+            this.injections = {};
+            Object.assign( this.injections, provider.injections );
 
-                let ifid = provider.injections[key];
-
+            for( var key in this.injections ){
+                let ifid = this.injections[key];
                 let slot = scope[ ifid ] || (scope[ifid] = new Slot());
                 slot.addInjector( this );
-
             }
         }
 
         pslot.addProvider( this );
+    }
+
+    bindInjections( injections ){
+
+        injections.forEach(([clazz, _interface]) => {
+
+            var key = knownInterfaces.indexOf( _interface );
+            var injection = injections[key];
+
+            if( !(key in this.binds) ){
+                let ifid = this.injections[key];
+                this.scope[ this.ifid ].removeInjector( this );
+                this.satisfy();
+                this.dependencyCount--;
+            }
+
+            this.binds[key] = clazz;
+
+        });
 
     }
 
@@ -68,6 +91,14 @@ class Slot{
 
     }
 
+    removeInjector( ref ){
+
+        let index = this.injectors.indexOf( ref );
+        if( index > -1 )
+            this.injectors.splice( index, 1 );
+
+    }
+
     addProvider( ref ){
 
         this.providers.push(ref);
@@ -93,7 +124,7 @@ class Slot{
 
         if( this.viableProviders == 0 ){
             if( !multiple )
-                throw new Error("No viable providers for " + clazz);
+                throw new Error("No viable providers for " + clazz + ". #126");
             return [];
         }
 
@@ -103,7 +134,7 @@ class Slot{
         let maxPoints = -1;
         notViable: for( let i=0, c; c = this.providers[i]; ++i ){
             if( c.count ) continue;
-            let points = c.provider.dependencyCount;
+            let points = c.dependencyCount;
             if( tags && c.tags ){
                 for( let tag in tags ){
                     if( c.tags[tag] !== tags[tag] ) continue notViable;
@@ -111,7 +142,7 @@ class Slot{
                 }
             }
             if( multiple )
-                ret[ret.length] = c.provider;
+                ret[ret.length] = c.provider.policy.bind( c.provider, c.binds );
             else{
                 if( points > maxPoints ){
                     maxPoints = points;
@@ -119,12 +150,12 @@ class Slot{
                 }
             }
         }
-        
+
         if( !multiple ){
             if( !mostViable )
                 throw new Error("No viable providers for " + clazz + ". Tag mismatch.");
             
-            return mostViable.provider;
+            return mostViable.provider.policy.bind( mostViable.provider, mostViable.binds );
         }else
             return ret;
     }
@@ -167,14 +198,45 @@ class Provide {
         this.injections = null;
         this.dependencyCount = 0;
         this.clazz = null;
+        this.ctor = null;
+        this.binds = null;
 
         // default policy is to create a new instance for each injection
-        this.policy = function( args ){
-            return new (this.ctor)(args);
+        this.policy = function( binds, args ){
+            return new (this.ctor)( binds, args );
         };
     }
 
+    clone(){
 
+        let ret = new Provide();
+        
+        ret.injections = this.injections;
+        ret.dependencyCount = this.dependencyCount;
+        ret.clazz = this.clazz;
+        ret.policy = this.policy;
+        ret.ctor = this.ctor;
+        ret.binds = this.binds;
+
+        return ret;
+    }
+
+    bindInjections( injections ){
+
+        var binds = (this.binds = this.binds || []);
+        let bindCount = this.binds.length;
+
+        injections.forEach(([clazz, _interface]) => {
+            for( var i=0; i<bindCount; ++i ){
+                if( binds[i][0] == clazz )
+                    return;
+            }
+            binds[binds.length] = [clazz, _interface];
+        });
+
+        return this;
+
+    }
 
     getRef( ifid, _interface ){
 
@@ -217,10 +279,10 @@ class Provide {
 
     factory(){
 
-        this.policy = function( args ){
+        this.policy = function( binds, args ){
 
             return function( ...args2 ){
-                return new this.ctor( args.concat(args2) );
+                return new this.ctor( binds, args.concat(args2) );
             };
 
         }
@@ -232,14 +294,14 @@ class Provide {
     singleton(){
 
         let instance = null;
-        this.policy = function( args ){
+        this.policy = function( binds, args ){
 
             if( instance )
                 return instance;
 
             instance = Object.create(this.ctor.prototype);
             instance.constructor = this.ctor;
-            this.ctor.call( instance, args );
+            this.ctor.call( instance, binds, args );
 
             // new (class extends this.ctor{
             //     constructor( args ){
@@ -264,48 +326,62 @@ function bind(clazz){
     if( cid == -1 )
         cid = registerInterface( clazz );
     
+    let provider;
     let providers = concretions[cid];
+    let localProviders = [];
+
     if( !providers ){
-        let provider = (new Provide()).setConcretion(clazz);
+        provider = (new Provide()).setConcretion(clazz);
         providers = concretions[cid];
     }
 
+    localProviders = providers.map( partial => partial.clone() );
+    
     let refs = [];
     let tags = null;
     let ifid;
 
     let partialBind = {
         to:function( _interface ){
+
             let ifid = knownInterfaces.indexOf( _interface );
             if( ifid == -1 )
                 ifid = registerInterface( _interface );
 
-            for( let i=0, l=providers.length; i<l; ++i ){
-                let provider = providers[i];
+            localProviders.forEach((provider) => {
+
                 let ref = provider.getRef( ifid, _interface );
                 ref.tags = tags;
                 refs.push( ref );
-            }
+
+            });
 
             return this;
+
         },
 
         withTags:function( tags ){
             refs.forEach( ref => ref.tags = tags );
+            return this;
         },
 
         singleton:function(){
-            for( let i=0, l=providers.length; i<l; ++i ){
-                providers[i].singleton();
-            }
+            localProviders.forEach( provider => provider.singleton() );
             return this;
         },
         factory:function(){
-            for( let i=0, l=providers.length; i<l; ++i ){
-                providers[i].factory();
-            }
+            localProviders.forEach( provider => provider.factory() );
+            return this;
+        },
+        inject:function( map ){
+            return this.injecting( map );
+        },
+        injecting:function( ...args ){
+            refs.forEach( ref => ref.bindInjections(args) );
+            localProviders.forEach( provider => provider.bindInjections(args) );
             return this;
         }
+
     }
     
     return partialBind;
@@ -369,8 +445,8 @@ class Inject{
         provider.injections = injections;        
         provider.dependencyCount = dependencyCount;
 
-        provider.ctor = function( args ){
-            resolveDependencies( this );
+        provider.ctor = function( binds, args ){
+            resolveDependencies( binds, this );
             clazz.apply( this, args );
         };
         provider.ctor.prototype = Object.create( clazz.prototype );
@@ -383,25 +459,32 @@ class Inject{
         //     }
         // };
 
-        function resolveDependencies( obj ){
+        function resolveDependencies( binds, obj ){
             let slotset =  context[ context.length-1 ];
             for( let key in injections ){
+                if( binds && injections[key] in binds ){
+                    obj[key] = binds[ injections[key] ];
+                    continue;
+                }
+                
                 let slot = slotset[ injections[key] ];
-                let provider = slot.getViable( key, tags[key], multiple[key] );
+                let policy = slot.getViable( key, tags[key], multiple[key] );
                 if( !multiple[key] )
-                    obj[key] = provider.policy([]);
+                    obj[key] = policy([]);
                 else{
                     let out = obj[key] = [];
-                    for( let i=0; i<provider.length; ++i )
-                        out[i] = provider[i].policy([]);
+                    for( let i=0; i<policy.length; ++i )
+                        out[i] = policy[i]([]);
                 }
             }
-        }        
+        }
     }
 }
 
 function inject( dependencies ){
+
     return new Inject( dependencies );
+
 }
 
 function getInstanceOf( _interface, ...args ){
@@ -410,11 +493,12 @@ function getInstanceOf( _interface, ...args ){
     let slot = context[ context.length-1 ][ ifid ];
 
     if( !slot )
-        throw new Error("No viable providers for " + _interface.name);
+        throw new Error("No viable providers for " + _interface.name + ". #467");
     
-    let provider = slot.getViable();
+    let policy = slot.getViable();
     
-    return provider.policy.call( provider, args );
+    return policy.call( null, args );
+
 }
 
 
