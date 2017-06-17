@@ -1,3 +1,5 @@
+"use strict";
+
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
 
 var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
@@ -305,13 +307,14 @@ var Provide = function () {
         value: function factory() {
 
             this.policy = function (binds, args) {
+                var THIS = this;
 
                 return function () {
                     for (var _len = arguments.length, args2 = Array(_len), _key = 0; _key < _len; _key++) {
                         args2[_key] = arguments[_key];
                     }
 
-                    return new this.ctor(binds, args.concat(args2));
+                    return new THIS.ctor(binds, args.concat(args2));
                 };
             };
 
@@ -352,16 +355,15 @@ function bind(clazz) {
     var cid = knownInterfaces.indexOf(clazz);
     if (cid == -1) {
         cid = registerInterface(clazz);
-
-        if (clazz && clazz["@inject"]) inject(clazz["@inject"]).into(clazz);
     }
 
-    var provider = void 0;
     var providers = concretions[cid];
     var localProviders = [];
 
     if (!providers) {
-        provider = new Provide().setConcretion(clazz);
+
+        if (clazz && clazz["@inject"]) inject(clazz["@inject"]).into(clazz);else new Provide().setConcretion(clazz);
+
         providers = concretions[cid];
     }
 

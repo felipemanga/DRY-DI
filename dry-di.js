@@ -280,9 +280,10 @@ class Provide {
     factory(){
 
         this.policy = function( binds, args ){
+            var THIS = this;
 
             return function( ...args2 ){
-                return new this.ctor( binds, args.concat(args2) );
+                return new (THIS.ctor)( binds, args.concat(args2) );
             };
 
         }
@@ -325,18 +326,18 @@ function bind(clazz){
     let cid = knownInterfaces.indexOf( clazz );
     if( cid == -1 ){
         cid = registerInterface( clazz );
-
-        if( clazz && clazz["@inject"] )
-            inject( clazz["@inject"] ).into( clazz );
-
     }
     
-    let provider;
     let providers = concretions[cid];
     let localProviders = [];
 
     if( !providers ){
-        provider = (new Provide()).setConcretion(clazz);
+        
+        if( clazz && clazz["@inject"] )
+            inject( clazz["@inject"] ).into( clazz );
+        else
+            (new Provide()).setConcretion(clazz);
+
         providers = concretions[cid];
     }
 
