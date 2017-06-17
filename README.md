@@ -7,6 +7,30 @@ DRY-DI: ES5/6* Dependency Injection where you Don't Repeat Yourself.
 - No dependencies!
 - MIT License!
 
+## TL;DR
+
+The following example requires Babel and transform-class-properties.
+
+    class InterfaceType {
+        method(){ throw "Not Implemented!"; }
+    }
+
+    class B {
+        method(){ console.log("B.method()"); }
+    }
+
+    class A {
+        static "@inject" = {
+            injectedProperty: InterfaceType
+        }
+        otherMethod(){
+            this.injectedProperty.method();
+        }
+    }
+
+    bind(B).to(InterfaceType);
+    bind(A).to("name").singleton();
+    getInstance("name").otherMethod();
 
 ## INSTALL
 
@@ -134,7 +158,7 @@ It is also possible to inject arrays of things with the syntax:
 
 Of course, this can be used together with tags and/or static properties:
 
-``` static "@inject" = { foods:[ IFood,[], {tasty:true}] }; ```  // inject all tasty foods```
+``` static "@inject" = { foods:[ IFood,[], {tasty:true}] }; // inject all tasty foods```
 
 ## Strings as Interfaces & Explicit Injection Binding
 Also visible in the example is that you can use names instead of interface classes.
