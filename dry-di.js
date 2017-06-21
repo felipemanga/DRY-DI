@@ -257,7 +257,7 @@ class Provide {
         this.clazz = clazz;
         if( typeof clazz == "function" ){
             this.ctor = class extends clazz{
-                constructor( args ){ 
+                constructor( binds, args ){ 
                     super( ...args ); 
                 }
             };
@@ -499,7 +499,7 @@ function getInstanceOf( _interface, ...args ){
     let slot = context[ context.length-1 ][ ifid ];
 
     if( !slot )
-        throw new Error("No viable providers for " + _interface.name + ". #467");
+        throw new Error("No providers for " + (_interface.name || _interface) + ". #467");
     
     let policy = slot.getViable();
     

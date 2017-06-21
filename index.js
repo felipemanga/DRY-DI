@@ -278,7 +278,7 @@ var Provide = function () {
                 this.ctor = function (_clazz) {
                     _inherits(_class, _clazz);
 
-                    function _class(args) {
+                    function _class(_binds, args) {
                         var _ref5;
 
                         _classCallCheck(this, _class);
@@ -533,7 +533,7 @@ function getInstanceOf(_interface) {
     var ifid = knownInterfaces.indexOf(_interface);
     var slot = context[context.length - 1][ifid];
 
-    if (!slot) throw new Error("No viable providers for " + _interface.name + ". #467");
+    if (!slot) throw new Error("No providers for " + (_interface.name || _interface) + ". #467");
 
     var policy = slot.getViable();
 
