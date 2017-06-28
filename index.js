@@ -535,7 +535,7 @@ function getInstanceOf(_interface) {
 
     if (!slot) throw new Error("No providers for " + (_interface.name || _interface) + ". #467");
 
-    var policy = slot.getViable();
+    var policy = slot.getViable( _interface.name || _interface  );
 
     for (var _len3 = arguments.length, args = Array(_len3 > 1 ? _len3 - 1 : 0), _key4 = 1; _key4 < _len3; _key4++) {
         args[_key4 - 1] = arguments[_key4];
