@@ -1,5 +1,5 @@
 
-module.exports = {bind, inject, getInstanceOf};
+module.exports = {bind, inject, getInstanceOf, getPolicy};
 
 /*
 
@@ -495,16 +495,42 @@ function inject( dependencies ){
 
 function getInstanceOf( _interface, ...args ){
 
-    let ifid = knownInterfaces.indexOf( _interface );
-    let slot = context[ context.length-1 ][ ifid ];
+    // let ifid = knownInterfaces.indexOf( _interface );
+    // let slot = context[ context.length-1 ][ ifid ];
 
-    if( !slot )
-        throw new Error("No providers for " + (_interface.name || _interface) + ". #467");
+    // if( !slot )
+    //     throw new Error("No providers for " + (_interface.name || _interface) + ". #467");
     
-    let policy = slot.getViable( _interface.name || _interface );
+    // let policy = slot.getViable( _interface.name || _interface );
     
-    return policy.call( null, args );
+    // return policy.call( null, args );
+    return getPolicy( { _interface, args:args } );
 
 }
 
 
+
+function getPolicy( desc ){
+    desc = desc || {};
+    if( !desc._interface ) throw new Error("Policy descriptor has no interface.");
+    let name = (desc._interface.name || desc._interface);
+    let tags = desc.tags;
+    let multiple = desc.multiple;
+    let args = desc.args;
+
+    let ifid = knownInterfaces.indexOf( desc._interface );
+    let slot = context[ context.length-1 ][ ifid ];
+
+    if( !slot )
+        throw new Error("No providers for " + name + ". #467");
+    
+    let policy = slot.getViable( name, tags, multiple );
+    if( args ){
+        if( multiple )
+            policy = policy.map( p => p.call(null, args) );
+        else
+            policy = policy.call(null, args);
+    }
+    return policy;
+
+}

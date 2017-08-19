@@ -14,7 +14,7 @@ function _inherits(subClass, superClass) { if (typeof superClass !== "function" 
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-module.exports = { bind: bind, inject: inject, getInstanceOf: getInstanceOf };
+module.exports = { bind: bind, inject: inject, getInstanceOf: getInstanceOf, getPolicy: getPolicy };
 
 /*
 
@@ -278,7 +278,7 @@ var Provide = function () {
                 this.ctor = function (_clazz) {
                     _inherits(_class, _clazz);
 
-                    function _class(_binds, args) {
+                    function _class(binds, args) {
                         var _ref5;
 
                         _classCallCheck(this, _class);
@@ -529,17 +529,40 @@ function inject(dependencies) {
 }
 
 function getInstanceOf(_interface) {
-
-    var ifid = knownInterfaces.indexOf(_interface);
-    var slot = context[context.length - 1][ifid];
-
-    if (!slot) throw new Error("No providers for " + (_interface.name || _interface) + ". #467");
-
-    var policy = slot.getViable( _interface.name || _interface  );
-
     for (var _len3 = arguments.length, args = Array(_len3 > 1 ? _len3 - 1 : 0), _key4 = 1; _key4 < _len3; _key4++) {
         args[_key4 - 1] = arguments[_key4];
     }
 
-    return policy.call(null, args);
+    // let ifid = knownInterfaces.indexOf( _interface );
+    // let slot = context[ context.length-1 ][ ifid ];
+
+    // if( !slot )
+    //     throw new Error("No providers for " + (_interface.name || _interface) + ". #467");
+
+    // let policy = slot.getViable( _interface.name || _interface );
+
+    // return policy.call( null, args );
+    return getPolicy({ _interface: _interface, args: args });
+}
+
+function getPolicy(desc) {
+    desc = desc || {};
+    if (!desc._interface) throw new Error("Policy descriptor has no interface.");
+    var name = desc._interface.name || desc._interface;
+    var tags = desc.tags;
+    var multiple = desc.multiple;
+    var args = desc.args;
+
+    var ifid = knownInterfaces.indexOf(desc._interface);
+    var slot = context[context.length - 1][ifid];
+
+    if (!slot) throw new Error("No providers for " + name + ". #467");
+
+    var policy = slot.getViable(name, tags, multiple);
+    if (args) {
+        if (multiple) policy = policy.map(function (p) {
+            return p.call(null, args);
+        });else policy = policy.call(null, args);
+    }
+    return policy;
 }
